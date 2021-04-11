@@ -12,20 +12,23 @@
     (catch Exception _ nil)))
 
 
-(defn run
-  [f env]
-  (when f
-    (let [cmd (read-command (read-line))]
-      (if cmd
-        (let [[f1 env ps] (f cmd env)]
-          (doseq [p! ps] (p!))
-          (flush)
-          (recur f1 env))
-        (do
-          (println "invalid command syntax")
-          (recur f env))))))
+(defn roam
+  ([f r] (roam f r []))
+  ([f r more]
+   (loop [[f more] [f more]]
+     (when f
+       (recur (r f more))))))
+
+
+(defn roamer
+  [f more]
+  (if-let [cmd (read-command (read-line))]
+    (apply f cmd more)
+    (do
+      (println "invalid command syntax")
+      [f more])))
 
 
 (defn -main
   [& args]
-  (run tcore/-loop {}))
+  (roam tcore/-loop roamer))

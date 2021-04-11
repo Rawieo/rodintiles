@@ -4,33 +4,38 @@
             [clojure.pprint :refer [pprint]]))
 
 
+(declare -loop)
+
+
 (defn read*
-  [_ -loop env tiles x y]
-  (pprint [env tiles x y])
-  [-loop env tiles [#(pprint (get-in tiles [x y]))]])
+  [back path name data x y]
+  (pprint (get-in data [x y]))
+  [-loop [back path name data]])
 
 
 (defn write
-  [_ -loop env tiles x y z]
-  [-loop env (assoc-in tiles [x y] z) []])
+  [back path name data x y z]
+  [-loop [back path name (assoc-in data [x y] z)]])
 
 
 (defn overwrite
-  [_ -loop env tiles z]
-  [-loop env (mapv #(mapv (constantly z) %) tiles) []])
+  [back path name data z]
+  [-loop [back path name (mapv #(mapv (constantly z) %) data)]])
 
 
 (defn close
-  [bck _ env tiles]
-  (let [{:keys [path name]} env]
-    [bck (dissoc env :path :name) tiles [#(tio/spit-res path name tiles)]]))
+  [back path name data]
+  (tio/spit-res path name data)
+  [back []])
 
 
 (defn help
-  [_ -loop env]
-  [-loop env [#(pprint (let [[_ & pairs] (s/describe ::command)]
-                         (for [[k sk] (partition 2 pairs)]
-                           [k (s/describe sk)])))]])
+  [back path name data]
+  (pprint
+   (let [[_ & pairs] (s/describe ::command)]
+     (for [[k sk] (partition 2 pairs)]
+       [k (s/describe sk)])))
+  [back [path name data]])
 
 
 (s/def ::write-cmd  (s/tuple #{:write} int? int? int?))
@@ -59,12 +64,11 @@
 
 
 (defn -loop
-  [bck dat]
-  (let [tiles (atom dat)]
-    (fn -loop* [cmd env]
-      (if (s/valid? ::command cmd)
-        (let [[kwd & params] cmd
-              [bck1 env1 tiles1 ps] (apply (commands kwd) bck -loop* env @tiles params)]
-          (reset! tiles tiles1)
-          [bck1 env1 ps])
-        [-loop* env [#(s/explain ::command cmd)]]))))
+  [cmd back path name data]
+  (if (s/valid? ::command cmd)
+    (let [[kwd & params] cmd]
+      (apply (commands kwd) back path name data params))
+    (do
+      (s/explain ::command cmd)
+      (flush)
+      [-loop [back path name data]])))
